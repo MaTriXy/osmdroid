@@ -1,12 +1,14 @@
 // Created by plusminus on 00:02:58 - 03.10.2008
 package org.osmdroid.views.overlay;
 
-import org.osmdroid.util.GeoPoint;
+import org.osmdroid.api.IGeoPoint;
 
 import android.graphics.Point;
 import android.graphics.drawable.Drawable;
 
 /**
+ * An Item that can be displayed in a {@link ItemizedOverlay} or {@link ItemizedIconOverlay}.
+ *
  * Immutable class describing a GeoPoint with a Title and a Description.
  *
  * @author Nicolas Gramlich
@@ -41,7 +43,7 @@ public class OverlayItem {
 	protected final String mUid;
 	protected final String mTitle;
 	protected final String mSnippet;
-	protected final GeoPoint mGeoPoint;
+	protected final IGeoPoint mGeoPoint;
 	protected Drawable mMarker;
 	protected HotspotPlace mHotspotPlace;
 
@@ -56,12 +58,12 @@ public class OverlayItem {
 	 *            a <b>multiLine</b> description ( <code>'\n'</code> possible)
 	 * @param aGeoPoint
 	 */
-	public OverlayItem(final String aTitle, final String aSnippet, final GeoPoint aGeoPoint) {
+	public OverlayItem(final String aTitle, final String aSnippet, final IGeoPoint aGeoPoint) {
 		this(null, aTitle, aSnippet, aGeoPoint);
 	}
 
 	public OverlayItem(final String aUid, final String aTitle, final String aDescription,
-			final GeoPoint aGeoPoint) {
+			final IGeoPoint aGeoPoint) {
 		this.mTitle = aTitle;
 		this.mSnippet = aDescription;
 		this.mGeoPoint = aGeoPoint;
@@ -83,7 +85,7 @@ public class OverlayItem {
 		return mSnippet;
 	}
 
-	public GeoPoint getPoint() {
+	public IGeoPoint getPoint() {
 		return mGeoPoint;
 	}
 

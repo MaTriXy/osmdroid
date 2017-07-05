@@ -1,16 +1,17 @@
 // Created by plusminus on 17:58:57 - 25.09.2008
 package org.osmdroid.tileprovider;
 
+import org.osmdroid.config.Configuration;
 import org.osmdroid.tileprovider.constants.OpenStreetMapTileProviderConstants;
 
 import android.graphics.drawable.Drawable;
 
 /**
- * 
+ * In memory cache of tiles
  * @author Nicolas Gramlich
  * 
  */
-public class MapTileCache implements OpenStreetMapTileProviderConstants {
+public class MapTileCache {
 	// ===========================================================
 	// Constants
 	// ===========================================================
@@ -27,7 +28,7 @@ public class MapTileCache implements OpenStreetMapTileProviderConstants {
 	// ===========================================================
 
 	public MapTileCache() {
-		this(CACHE_MAPTILECOUNT_DEFAULT);
+		this(Configuration.getInstance().getCacheMapTileCount());
 	}
 
 	/**

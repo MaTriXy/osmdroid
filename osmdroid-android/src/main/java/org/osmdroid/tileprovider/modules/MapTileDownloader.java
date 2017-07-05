@@ -1,5 +1,22 @@
 package org.osmdroid.tileprovider.modules;
 
+import android.graphics.drawable.Drawable;
+import android.text.TextUtils;
+import android.util.Log;
+
+import org.osmdroid.api.IMapView;
+import org.osmdroid.config.Configuration;
+import org.osmdroid.tileprovider.BitmapPool;
+import org.osmdroid.tileprovider.MapTile;
+import org.osmdroid.tileprovider.MapTileRequestState;
+import org.osmdroid.tileprovider.ReusableBitmapDrawable;
+import org.osmdroid.tileprovider.constants.OpenStreetMapTileProviderConstants;
+import org.osmdroid.tileprovider.tilesource.BitmapTileSourceBase.LowMemoryException;
+import org.osmdroid.tileprovider.tilesource.ITileSource;
+import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase;
+import org.osmdroid.tileprovider.util.Counters;
+import org.osmdroid.tileprovider.util.StreamUtils;
+
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -7,28 +24,12 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.net.UnknownHostException;
+import java.util.Date;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpUriRequest;
-import org.osmdroid.http.HttpClientFactory;
-import org.osmdroid.tileprovider.BitmapPool;
-import org.osmdroid.tileprovider.MapTile;
-import org.osmdroid.tileprovider.MapTileRequestState;
-import org.osmdroid.tileprovider.ReusableBitmapDrawable;
-import org.osmdroid.tileprovider.tilesource.BitmapTileSourceBase.LowMemoryException;
-import org.osmdroid.tileprovider.tilesource.ITileSource;
-import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase;
-import org.osmdroid.tileprovider.util.StreamUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import android.graphics.drawable.Drawable;
-import android.text.TextUtils;
 
 /**
  * The {@link MapTileDownloader} loads tiles from an HTTP server. It saves downloaded tiles to an
@@ -44,8 +45,6 @@ public class MapTileDownloader extends MapTileModuleProviderBase {
 	// ===========================================================
 	// Constants
 	// ===========================================================
-
-	private static final Logger logger = LoggerFactory.getLogger(MapTileDownloader.class);
 
 	// ===========================================================
 	// Fields
@@ -73,7 +72,8 @@ public class MapTileDownloader extends MapTileModuleProviderBase {
 			final IFilesystemCache pFilesystemCache,
 			final INetworkAvailablityCheck pNetworkAvailablityCheck) {
 		this(pTileSource, pFilesystemCache, pNetworkAvailablityCheck,
-				NUMBER_OF_TILE_DOWNLOAD_THREADS, TILE_DOWNLOAD_MAXIMUM_QUEUE_SIZE);
+			Configuration.getInstance().getTileDownloadThreads(),
+			Configuration.getInstance().getTileDownloadMaxQueueSize());
 	}
 
 	public MapTileDownloader(final ITileSource pTileSource,
@@ -120,15 +120,23 @@ public class MapTileDownloader extends MapTileModuleProviderBase {
 	}
 
 	@Override
+	public void detach() {
+		super.detach();
+		if (this.mFilesystemCache!=null)
+		this.mFilesystemCache.onDetach();
+	}
+
+	@Override
 	public int getMinimumZoomLevel() {
 		OnlineTileSourceBase tileSource = mTileSource.get();
-		return (tileSource != null ? tileSource.getMinimumZoomLevel() : MINIMUM_ZOOMLEVEL);
+		return (tileSource != null ? tileSource.getMinimumZoomLevel() : OpenStreetMapTileProviderConstants.MINIMUM_ZOOMLEVEL);
 	}
 
 	@Override
 	public int getMaximumZoomLevel() {
 		OnlineTileSourceBase tileSource = mTileSource.get();
-		return (tileSource != null ? tileSource.getMaximumZoomLevel() : MAXIMUM_ZOOMLEVEL);
+		return (tileSource != null ? tileSource.getMaximumZoomLevel()
+				: microsoft.mappoint.TileSystem.getMaximumZoomLevel());
 	}
 
 	@Override
@@ -158,54 +166,87 @@ public class MapTileDownloader extends MapTileModuleProviderBase {
 
 			InputStream in = null;
 			OutputStream out = null;
+			HttpURLConnection c=null;
 			final MapTile tile = aState.getMapTile();
 
 			try {
 
 				if (mNetworkAvailablityCheck != null
 						&& !mNetworkAvailablityCheck.getNetworkAvailable()) {
-					if (DEBUGMODE) {
-						logger.debug("Skipping " + getName() + " due to NetworkAvailabliltyCheck.");
+					if (Configuration.getInstance().isDebugMode()) {
+						Log.d(IMapView.LOGTAG,"Skipping " + getName() + " due to NetworkAvailabliltyCheck.");
 					}
 					return null;
 				}
 
 				final String tileURLString = tileSource.getTileURLString(tile);
 
-				if (DEBUGMODE) {
-					logger.debug("Downloading Maptile from url: " + tileURLString);
+				if (Configuration.getInstance().isDebugMode()) {
+					Log.d(IMapView.LOGTAG,"Downloading Maptile from url: " + tileURLString);
 				}
 
 				if (TextUtils.isEmpty(tileURLString)) {
 					return null;
 				}
 
-				final HttpClient client = HttpClientFactory.createHttpClient();
-				final HttpUriRequest head = new HttpGet(tileURLString);
-				final HttpResponse response = client.execute(head);
+				if (Configuration.getInstance().getHttpProxy() != null) {
+					c = (HttpURLConnection) new URL(tileURLString).openConnection(Configuration.getInstance().getHttpProxy());
+				} else {
+					c = (HttpURLConnection) new URL(tileURLString).openConnection();
+				}
+				c.setUseCaches(true);
+				c.setRequestProperty(Configuration.getInstance().getUserAgentHttpHeader(),Configuration.getInstance().getUserAgentValue());
+				for (final Map.Entry<String, String> entry : Configuration.getInstance().getAdditionalHttpRequestProperties().entrySet()) {
+					c.setRequestProperty(entry.getKey(), entry.getValue());
+				}
+				c.connect();
+                                
 
 				// Check to see if we got success
-				final org.apache.http.StatusLine line = response.getStatusLine();
-				if (line.getStatusCode() != 200) {
-					logger.warn("Problem downloading MapTile: " + tile + " HTTP response: " + line);
+				
+				if (c.getResponseCode() != 200) {
+					Log.w(IMapView.LOGTAG, "Problem downloading MapTile: " + tile + " HTTP response: " + c.getResponseMessage());
+					if (Configuration.getInstance().isDebugMapTileDownloader()) {
+						Log.d(IMapView.LOGTAG, tileURLString);
+					}
+					Counters.tileDownloadErrors++;
 					return null;
 				}
-
-				final HttpEntity entity = response.getEntity();
-				if (entity == null) {
-					logger.warn("No content downloading MapTile: " + tile);
-					return null;
+				if (Configuration.getInstance().isDebugMapTileDownloader()) {
+					Log.d(IMapView.LOGTAG, tileURLString + " success");
 				}
-				in = entity.getContent();
+				
+				in = c.getInputStream();
 
 				final ByteArrayOutputStream dataStream = new ByteArrayOutputStream();
 				out = new BufferedOutputStream(dataStream, StreamUtils.IO_BUFFER_SIZE);
+				//default is 1 week from now
+				Date dateExpires;
+				Long override=Configuration.getInstance().getExpirationOverrideDuration();
+				if (override!=null) {
+					dateExpires= new Date(System.currentTimeMillis() + override);
+				} else {
+					dateExpires = new Date(System.currentTimeMillis() + OpenStreetMapTileProviderConstants.DEFAULT_MAXIMUM_CACHED_FILE_AGE + Configuration.getInstance().getExpirationExtendedDuration());
+					final String expires = c.getHeaderField(OpenStreetMapTileProviderConstants.HTTP_EXPIRES_HEADER);
+					if (expires != null && expires.length() > 0) {
+						try {
+							dateExpires = Configuration.getInstance().getHttpHeaderDateTimeFormat().parse(expires);
+							dateExpires.setTime(dateExpires.getTime() + Configuration.getInstance().getExpirationExtendedDuration());
+						} catch (Exception ex) {
+							if (Configuration.getInstance().isDebugMapTileDownloader())
+								Log.d(IMapView.LOGTAG, "Unable to parse expiration tag for tile, using default, server returned " + expires, ex);
+						}
+					}
+				}
+				tile.setExpires(dateExpires);
 				StreamUtils.copy(in, out);
 				out.flush();
 				final byte[] data = dataStream.toByteArray();
 				final ByteArrayInputStream byteStream = new ByteArrayInputStream(data);
 
-				// Save the data to the filesystem cache
+				// Save the data to the cache
+				//this is the only point in which we insert tiles to the db or local file system.
+
 				if (mFilesystemCache != null) {
 					mFilesystemCache.saveFile(tileSource, tile, byteStream);
 					byteStream.reset();
@@ -215,21 +256,29 @@ public class MapTileDownloader extends MapTileModuleProviderBase {
 				return result;
 			} catch (final UnknownHostException e) {
 				// no network connection so empty the queue
-				logger.warn("UnknownHostException downloading MapTile: " + tile + " : " + e);
+				Log.w(IMapView.LOGTAG,"UnknownHostException downloading MapTile: " + tile + " : " + e);
+				Counters.tileDownloadErrors++;
 				throw new CantContinueException(e);
 			} catch (final LowMemoryException e) {
 				// low memory so empty the queue
-				logger.warn("LowMemoryException downloading MapTile: " + tile + " : " + e);
+				Counters.countOOM++;
+				Log.w(IMapView.LOGTAG,"LowMemoryException downloading MapTile: " + tile + " : " + e);
 				throw new CantContinueException(e);
 			} catch (final FileNotFoundException e) {
-				logger.warn("Tile not found: " + tile + " : " + e);
+				Counters.tileDownloadErrors++;
+				Log.w(IMapView.LOGTAG,"Tile not found: " + tile + " : " + e);
 			} catch (final IOException e) {
-				logger.warn("IOException downloading MapTile: " + tile + " : " + e);
+				Counters.tileDownloadErrors++;
+				Log.w(IMapView.LOGTAG,"IOException downloading MapTile: " + tile + " : " + e);
 			} catch (final Throwable e) {
-				logger.error("Error downloading MapTile: " + tile, e);
+				Counters.tileDownloadErrors++;
+				Log.e(IMapView.LOGTAG,"Error downloading MapTile: " + tile, e);
 			} finally {
 				StreamUtils.closeStream(in);
 				StreamUtils.closeStream(out);
+				try{
+					c.disconnect();
+				} catch (Exception ex){}
 			}
 
 			return null;

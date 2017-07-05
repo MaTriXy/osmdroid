@@ -1,8 +1,15 @@
 package org.osmdroid.tileprovider.constants;
 
 import java.io.File;
+import java.text.SimpleDateFormat;
+import java.util.Locale;
 
-import android.os.Environment;
+import org.osmdroid.config.Configuration;
+import org.osmdroid.tileprovider.LRUMapTileCache;
+
+import android.util.Log;
+import org.osmdroid.api.IMapView;
+import org.osmdroid.tileprovider.util.StorageUtils;
 
 /**
  *
@@ -11,43 +18,62 @@ import android.os.Environment;
  * @author Neil Boyd
  *
  */
-public interface OpenStreetMapTileProviderConstants {
+public class OpenStreetMapTileProviderConstants {
 
-	public static final boolean DEBUGMODE = false;
-	public static final boolean DEBUG_TILE_PROVIDERS = false;
+     /** Base path for osmdroid files. Zip/sqlite/mbtiles/etc files are in this folder. 
+          Note: also used for offline tile sources*/
+	private static File OSMDROID_PATH = new File(StorageUtils.getStorage().getAbsolutePath(),
+			"osmdroid");
+     @Deprecated
+     public static File getBasePath(){
+          return Configuration.getInstance().getOsmdroidBasePath();
+     }
+     
+	/** Base path for tiles. 
+      /sdcard/osmdroid/tiles
+
+	//public static File TILE_PATH_BASE = new File(OSMDROID_PATH, "tiles");
+     
+     static{
+          try {
+                   TILE_PATH_BASE.mkdirs();
+                   new File(TILE_PATH_BASE + "/.nomedia").createNewFile();
+              } catch (Exception ex) {
+                   Log.e(IMapView.LOGTAG, "unable to create a nomedia file. downloaded tiles may be visible to the gallery. " + ex.getMessage());
+              }
+	 }
+	 */
+	/**
+	 * Enables you to get the value for HTTP user agents. Used when downloading tiles
+	 * @since 5.0
+	 * @return
+	 * @deprecated
+	 * @see Configuration.getInstance().getUserAgentValue()
+	 */
+	@Deprecated
+	public static String getUserAgentValue(){
+		return Configuration.getInstance().getUserAgentValue();
+	}
+
+	/**
+	 * Enables you to override the default "osmdroid" value for HTTP user agents. Used when downloading tiles
+	 * @since 5.0
+	 * @param val
+	 * @deprecated
+	 * @see Configuration.getInstance().getUserAgentValue()
+	 */
+	@Deprecated
+	public static void setUserAgentValue(String val){
+		Configuration.getInstance().setUserAgentValue(val);
+	}
 
 	/** Minimum Zoom Level */
 	public static final int MINIMUM_ZOOMLEVEL = 0;
 
-	/**
-	 * Maximum Zoom Level - we use Integers to store zoom levels so overflow happens at 2^32 - 1,
-	 * but we also have a tile size that is typically 2^8, so (32-1)-8-1 = 22
-	 */
-	public static final int MAXIMUM_ZOOMLEVEL = 22;
-
-	/** Base path for osmdroid files. Zip files are in this folder. */
-	public static final File OSMDROID_PATH = new File(Environment.getExternalStorageDirectory(),
-			"osmdroid");
-
-	/** Base path for tiles. */
-	public static final File TILE_PATH_BASE = new File(OSMDROID_PATH, "tiles");
+	
 
 	/** add an extension to files on sdcard so that gallery doesn't index them */
 	public static final String TILE_PATH_EXTENSION = ".tile";
-
-	/**
-	 * Initial tile cache size. The size will be increased as required by calling {@link
-	 * LRUMapTileCache.ensureCapacity(int)} The tile cache will always be at least 3x3.
-	 */
-	public static final int CACHE_MAPTILECOUNT_DEFAULT = 9;
-
-	/**
-	 * number of tile download threads, conforming to OSM policy:
-	 * http://wiki.openstreetmap.org/wiki/Tile_usage_policy
-	 */
-	public static final int NUMBER_OF_TILE_DOWNLOAD_THREADS = 2;
-
-	public static final int NUMBER_OF_TILE_FILESYSTEM_THREADS = 8;
 
 	public static final long ONE_SECOND = 1000;
 	public static final long ONE_MINUTE = ONE_SECOND * 60;
@@ -57,16 +83,38 @@ public interface OpenStreetMapTileProviderConstants {
 	public static final long ONE_YEAR = ONE_DAY * 365;
 	public static final long DEFAULT_MAXIMUM_CACHED_FILE_AGE = ONE_WEEK;
 
-	public static final int TILE_DOWNLOAD_MAXIMUM_QUEUE_SIZE = 40;
-	public static final int TILE_FILESYSTEM_MAXIMUM_QUEUE_SIZE = 40;
-
-	/** 30 days */
+	/** default tile expiration time, only used if the server doesn't specify
+	 * 30 days */
 	public static final long TILE_EXPIRY_TIME_MILLISECONDS = 1000L * 60 * 60 * 24 * 30;
 
-	/** 600 Mb */
-	public static final long TILE_MAX_CACHE_SIZE_BYTES = 600L * 1024 * 1024;
+     /** Change the root path of the osmdroid cache. 
+     * By default, it is defined in SD card, osmdroid directory. 
+     * @param newFullPath
 
-	/** 500 Mb */
-	public static final long TILE_TRIM_CACHE_SIZE_BYTES = 500L * 1024 * 1024;
+     public static void setCachePath(String newFullPath){
+         File f=new File(newFullPath);
+         if (f.exists()){
+               TILE_PATH_BASE = f.getAbsoluteFile();
+              try {
+                   new File(TILE_PATH_BASE + "/.nomedia").createNewFile();
+              } catch (Exception ex) {
+                   Log.e(IMapView.LOGTAG, "unable to create a nomedia file. downloaded tiles may be visible to the gallery.",ex);
+              }
+         }
+     }
+	  */
+
+
+	/**
+	 * this is the expected http header to expect from a tile server
+	 * @since 5.1
+	 */
+	public static final String HTTP_EXPIRES_HEADER = "Expires";
+	/**
+	 * this is the default and expected http header for Expires, date time format that is used
+	 * for more http servers. Can be overridden via Configuration
+	 * @since 5.1
+	 */
+	public static final String HTTP_EXPIRES_HEADER_FORMAT = "EEE, dd MMM yyyy HH:mm:ss z";
 
 }

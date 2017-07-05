@@ -3,10 +3,8 @@ package org.osmdroid.views.overlay;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.osmdroid.DefaultResourceProxyImpl;
-import org.osmdroid.ResourceProxy;
 import org.osmdroid.api.IGeoPoint;
-import org.osmdroid.util.BoundingBoxE6;
+import org.osmdroid.util.BoundingBox;
 import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.MapView;
 import org.osmdroid.views.Projection;
@@ -19,12 +17,16 @@ import android.graphics.Point;
 import android.graphics.Rect;
 
 /**
- *
+ * 
  * @author Viesturs Zarins
  * @author Martin Pearman
- *
- *         This class draws a path line in given color.
+ * 
+ * @deprecated This class is no longer maintained and has various issues. Instead you should use the
+ *             Polyline class in OSMBonusPack.
+ * @see Polyline
+ *             This class draws a path line in given color.
  */
+@Deprecated
 public class PathOverlay extends Overlay {
 	// ===========================================================
 	// Constants
@@ -61,16 +63,24 @@ public class PathOverlay extends Overlay {
 	// Constructors
 	// ===========================================================
 
+	/** Use {@link #PathOverlay(int)} instead */
+	@Deprecated
 	public PathOverlay(final int color, final Context ctx) {
-		this(color, 2.0f, new DefaultResourceProxyImpl(ctx));
+		this(color);
 	}
 
-	public PathOverlay(final int color, final ResourceProxy resourceProxy) {
-		this(color, 2.0f, resourceProxy);
+	/** Use {@link #PathOverlay(int, float)} instead */
+	@Deprecated
+	public PathOverlay(final int color, final float width, final Context ctx) {
+		this(color, width);
 	}
 
-	public PathOverlay(final int color, final float width, final ResourceProxy resourceProxy) {
-		super(resourceProxy);
+	public PathOverlay(final int color) {
+		this(color, 2.0f);
+	}
+
+	public PathOverlay(final int color, final float width) {
+		super();
 		this.mPaint.setColor(color);
 		this.mPaint.setStrokeWidth(width);
 		this.mPaint.setStyle(Paint.Style.STROKE);
@@ -139,7 +149,7 @@ public class PathOverlay extends Overlay {
 
 			final double latN = Math.atan2(z, Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2)));
 			final double lonN = Math.atan2(y, x);
-			addPoint((int) (latN / (Math.PI / 180) * 1E6), (int) (lonN / (Math.PI / 180) * 1E6));
+			addPoint(latN / (Math.PI / 180), lonN / (Math.PI / 180));
 		}
 	}
 
@@ -160,11 +170,11 @@ public class PathOverlay extends Overlay {
 	}
 
 	public void addPoint(final IGeoPoint aPoint) {
-		addPoint(aPoint.getLatitudeE6(), aPoint.getLongitudeE6());
+		addPoint(aPoint.getLatitude(), aPoint.getLongitude());
 	}
 
-	public void addPoint(final int aLatitudeE6, final int aLongitudeE6) {
-		mPoints.add(new Point(aLatitudeE6, aLongitudeE6));
+	public void addPoint(final double aLatitude, final double aLongitude) {
+		mPoints.add(new Point((int)aLatitude, (int)aLongitude));
 	}
 
 	public void addPoints(final IGeoPoint... aPoints) {
@@ -188,7 +198,7 @@ public class PathOverlay extends Overlay {
 	 * Should be fine up to 10K points.
 	 */
 	@Override
-	protected void draw(final Canvas canvas, final MapView mapView, final boolean shadow) {
+	public void draw(final Canvas canvas, final MapView mapView, final boolean shadow) {
 
 		if (shadow) {
 			return;
@@ -216,11 +226,11 @@ public class PathOverlay extends Overlay {
 		Point projectedPoint1;
 
 		// clipping rectangle in the intermediate projection, to avoid performing projection.
-		BoundingBoxE6 boundingBox = pj.getBoundingBox();
-		Point topLeft = pj.toProjectedPixels(boundingBox.getLatNorthE6(),
-				boundingBox.getLonWestE6(), null);
-		Point bottomRight = pj.toProjectedPixels(boundingBox.getLatSouthE6(),
-				boundingBox.getLonEastE6(), null);
+		BoundingBox boundingBox = pj.getBoundingBox();
+		Point topLeft = pj.toProjectedPixels(boundingBox.getLatNorth(),
+				boundingBox.getLonWest(), null);
+		Point bottomRight = pj.toProjectedPixels(boundingBox.getLatSouth(),
+				boundingBox.getLonEast(), null);
 		final Rect clipBounds = new Rect(topLeft.x, topLeft.y, bottomRight.x, bottomRight.y);
 
 		mPath.rewind();

@@ -1,6 +1,8 @@
 // Created by plusminus on 18:00:24 - 25.09.2008
 package org.osmdroid.views.util.constants;
 
+import org.osmdroid.config.Configuration;
+
 /**
  * 
  * This class contains constants used by the map view.
@@ -9,11 +11,13 @@ package org.osmdroid.views.util.constants;
  * 
  */
 public interface MapViewConstants {
+
+	@Deprecated
+	public static boolean DEBUGMODE = Configuration.getInstance().isDebugMapView();
+
 	// ===========================================================
 	// Final Fields
 	// ===========================================================
-
-	public static final boolean DEBUGMODE = false;
 
 	public static final int NOT_SET = Integer.MIN_VALUE;
 
@@ -27,10 +31,5 @@ public interface MapViewConstants {
 
 	/** Minimum Zoom Level */
 	public static final int MINIMUM_ZOOMLEVEL = 0;
-
-	/**
-	 * Maximum Zoom Level - we use Integers to store zoom levels so overflow happens at 2^32 - 1,
-	 * but we also have a tile size that is typically 2^8, so (32-1)-8-1 = 22
-	 */
-	public static final int MAXIMUM_ZOOMLEVEL = 22;
+     public static final int MAXIMUM_ZOOMLEVEL = 23;
 }

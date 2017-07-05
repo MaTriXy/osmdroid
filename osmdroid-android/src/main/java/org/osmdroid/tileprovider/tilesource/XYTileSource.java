@@ -1,6 +1,5 @@
 package org.osmdroid.tileprovider.tilesource;
 
-import org.osmdroid.ResourceProxy.string;
 import org.osmdroid.tileprovider.MapTile;
 
 /**
@@ -8,11 +7,18 @@ import org.osmdroid.tileprovider.MapTile;
  */
 public class XYTileSource extends OnlineTileSourceBase {
 
-	public XYTileSource(final String aName, final string aResourceId, final int aZoomMinLevel,
+	public XYTileSource(final String aName, final int aZoomMinLevel,
 			final int aZoomMaxLevel, final int aTileSizePixels, final String aImageFilenameEnding,
 			final String[] aBaseUrl) {
-		super(aName, aResourceId, aZoomMinLevel, aZoomMaxLevel, aTileSizePixels,
-				aImageFilenameEnding, aBaseUrl);
+		this(aName, aZoomMinLevel, aZoomMaxLevel, aTileSizePixels,
+				aImageFilenameEnding, aBaseUrl,null);
+	}
+
+	public XYTileSource(final String aName, final int aZoomMinLevel,
+						final int aZoomMaxLevel, final int aTileSizePixels, final String aImageFilenameEnding,
+						final String[] aBaseUrl, final String copyright) {
+		super(aName, aZoomMinLevel, aZoomMaxLevel, aTileSizePixels,
+			aImageFilenameEnding, aBaseUrl,copyright);
 	}
 
 	@Override

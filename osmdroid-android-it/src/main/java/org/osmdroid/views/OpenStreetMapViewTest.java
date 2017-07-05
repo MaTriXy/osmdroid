@@ -1,59 +1,52 @@
+/*
+ * WARNING, All test cases exist in osmdroid-android-it/src/main/java (maven project)
+ *
+ * During build time (with gradle), these tests are copied from osmdroid-android-it to OpenStreetMapViewer/src/androidTest/java
+ * DO NOT Modify files in OpenSteetMapViewer/src/androidTest. You will loose your changes when building!
+ *
+ */
 package org.osmdroid.views;
 
-import org.osmdroid.DefaultResourceProxyImpl;
-import org.osmdroid.tileprovider.MapTileProviderBasic;
+import org.osmdroid.StarterMapActivity;
+import org.osmdroid.StarterMapFragment;
+import org.osmdroid.R;
 import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.Projection;
-
-import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.Bitmap.Config;
-import android.graphics.Canvas;
+import org.osmdroid.tileprovider.util.Counters;
 import android.graphics.Point;
-import android.test.AndroidTestCase;
-import android.test.IsolatedContext;
+import android.test.ActivityInstrumentationTestCase2;
+import android.test.UiThreadTest;
+import android.support.v4.app.FragmentManager;
 
 /**
  * @author Neil Boyd
  * 
  */
-public class OpenStreetMapViewTest extends AndroidTestCase {
+public class OpenStreetMapViewTest extends ActivityInstrumentationTestCase2<StarterMapActivity> {
 
-	private static final int WIDTH = 300;
-	private static final int HEIGHT = 500;
-
+	public OpenStreetMapViewTest() {
+        super(StarterMapActivity.class);
+		Counters.reset();
+    }
+	
 	private MapView mOpenStreetMapView;
 
 	@Override
 	protected void setUp() throws Exception {
 
-		// isolated context so that we can't bind to the remote service,
-		// but don't isolated from system services because we need them
-		final Context context = new IsolatedContext(null, getContext()) {
-			@Override
-			public Object getSystemService(final String pName) {
-				return getContext().getSystemService(pName);
-			}
-		};
-
-		// final String cloudmadeKey = getCloudmadeKey(applicationContext);
-		final MapTileProviderBasic mTileProvider = new MapTileProviderBasic(context);
-
-		mOpenStreetMapView = new MapView(context, 256, new DefaultResourceProxyImpl(context),
-				mTileProvider);
-		final Bitmap bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Config.RGB_565);
-		final Canvas canvas = new Canvas(bitmap);
-		mOpenStreetMapView.dispatchDraw(canvas);
+		FragmentManager fm = getActivity().getSupportFragmentManager();
+		StarterMapFragment fragment = (StarterMapFragment)fm.findFragmentById(R.id.map_container);
+		mOpenStreetMapView = fragment.getMapView();
 
 		super.setUp();
 	}
 
 	/**
-	 * This test was retrospectively added based on current implementation. TODO a manual
-	 * calculation and verify that this test gives the correct result.
+	 * This test will check whether calling setCenter() will position the maps so the location is
+	 * at the center of the screen.
 	 */
+	@UiThreadTest
 	public void test_toMapPixels_0_0() {
-
 		final GeoPoint zz = new GeoPoint(0, 0);
 		mOpenStreetMapView.getController().setCenter(zz);
 		mOpenStreetMapView.getController().setZoom(8);
@@ -61,14 +54,21 @@ public class OpenStreetMapViewTest extends AndroidTestCase {
 
 		final Point point = projection.toPixels(zz, null);
 
-		final Point expected = new Point(0, 0);
+		final int width_2 = mOpenStreetMapView.getWidth() / 2;
+		final int height_2 = mOpenStreetMapView.getHeight() / 2;
+		assertTrue("MapView does not have layout. Make sure device is unlocked.", width_2 > 0 && height_2 > 0);
+		final Point expected = new Point(width_2, height_2);
 		assertEquals("TODO describe test", expected, point);
 	}
 
 	/**
 	 * This test was retrospectively added based on current implementation. TODO a manual
 	 * calculation and verify that this test gives the correct result.
-	 */
+	 *
+	 * This test was commented out because it's is screen dpi dependent when the map view is set to scale
+	 * tiles to screen dpi, which is now on by default across the example app
+
+	@UiThreadTest
 	public void test_toMapPixels_Hannover() {
 
 		final GeoPoint hannover = new GeoPoint(52370816, 9735936);
@@ -79,7 +79,7 @@ public class OpenStreetMapViewTest extends AndroidTestCase {
 		final Point point = projection.toPixels(hannover, null);
 		projection.toMercatorPixels(point.x, point.y, point);
 
-		final Point expected = new Point(34540, 21537);
+		final Point expected = new Point(51811, 32306);
 		assertEquals("TODO describe test", expected, point);
-	}
+	} */
 }

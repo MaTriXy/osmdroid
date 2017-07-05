@@ -3,12 +3,13 @@ package org.osmdroid.views.overlay;
 
 import java.util.ArrayList;
 
-import org.osmdroid.ResourceProxy;
 import org.osmdroid.views.MapView;
 import org.osmdroid.views.Projection;
 import org.osmdroid.views.overlay.OverlayItem.HotspotPlace;
 
+import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.Matrix;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
@@ -45,6 +46,10 @@ public abstract class ItemizedOverlay<Item extends OverlayItem> extends Overlay 
 	private Item mFocusedItem;
 	private boolean mPendingFocusChangedEvent = false;
 	private OnFocusChangeListener mOnFocusChangeListener;
+     private final float[] mMatrixValues = new float[9];
+     private final Matrix mMatrix = new Matrix();
+     protected float scaleX=1f;
+     protected float scaleY=1f;
 
 	// ===========================================================
 	// Abstract methods
@@ -65,10 +70,15 @@ public abstract class ItemizedOverlay<Item extends OverlayItem> extends Overlay 
 	// Constructors
 	// ===========================================================
 
-	public ItemizedOverlay(final Drawable pDefaultMarker, final ResourceProxy pResourceProxy) {
+	/** Use {@link #ItemizedOverlay(Drawable)} instead */
+	@Deprecated
+	public ItemizedOverlay(Context ctx, final Drawable pDefaultMarker) {
+		this(pDefaultMarker);
+	}
 
-		super(pResourceProxy);
+	public ItemizedOverlay(final Drawable pDefaultMarker) {
 
+		super();
 		if (pDefaultMarker == null) {
 			throw new IllegalArgumentException("You must pass a default marker to ItemizedOverlay.");
 		}
@@ -82,18 +92,24 @@ public abstract class ItemizedOverlay<Item extends OverlayItem> extends Overlay 
 	// Methods from SuperClass/Interfaces (and supporting methods)
 	// ===========================================================
 
+	@Override
+	public void onDetach(MapView mapView){
+		if (mDefaultMarker!=null){
+			//release the bitmap
+		}
+	}
 	/**
-	 * Draw a marker on each of our items. populate() must have been called first.<br/>
-	 * <br/>
+	 * Draw a marker on each of our items. populate() must have been called first.<br>
+	 * <br>
 	 * The marker will be drawn twice for each Item in the Overlay--once in the shadow phase, skewed
 	 * and darkened, then again in the non-shadow phase. The bottom-center of the marker will be
-	 * aligned with the geographical coordinates of the Item.<br/>
-	 * <br/>
+	 * aligned with the geographical coordinates of the Item.<br>
+	 * <br>
 	 * The order of drawing may be changed by overriding the getIndexToDraw(int) method. An item may
 	 * provide an alternate marker via its OverlayItem.getMarker(int) method. If that method returns
-	 * null, the default marker is used.<br/>
-	 * <br/>
-	 * The focused item is always drawn last, which puts it visually on top of the other items.<br/>
+	 * null, the default marker is used.<br>
+	 * <br>
+	 * The focused item is always drawn last, which puts it visually on top of the other items.<br>
 	 *
 	 * @param canvas
 	 *            the Canvas upon which to draw. Note that this may already have a transformation
@@ -105,27 +121,40 @@ public abstract class ItemizedOverlay<Item extends OverlayItem> extends Overlay 
 	 *            if true, draw the shadow layer. If false, draw the overlay contents.
 	 */
 	@Override
-	protected void draw(Canvas c, MapView mapView, boolean shadow) {
+    public void draw(Canvas canvas, MapView mapView, boolean shadow) {
 
-		if (shadow) {
-			return;
-		}
+        if (shadow) {
+            return;
+        }
 
-		if (mPendingFocusChangedEvent && mOnFocusChangeListener != null)
-			mOnFocusChangeListener.onFocusChanged(this, mFocusedItem);
-		mPendingFocusChangedEvent = false;
+        if (mPendingFocusChangedEvent && mOnFocusChangeListener != null)
+            mOnFocusChangeListener.onFocusChanged(this, mFocusedItem);
+        mPendingFocusChangedEvent = false;
 
-		final Projection pj = mapView.getProjection();
-		final int size = this.mInternalItemList.size() - 1;
+        final Projection pj = mapView.getProjection();
+        final int size = this.mInternalItemList.size() - 1;
 
+          canvas.getMatrix(mMatrix);
+          mMatrix.getValues(mMatrixValues);
+
+          scaleX = (float) Math.sqrt(mMatrixValues[Matrix.MSCALE_X]
+               * mMatrixValues[Matrix.MSCALE_X] + mMatrixValues[Matrix.MSKEW_Y]
+               * mMatrixValues[Matrix.MSKEW_Y]);
+          scaleY = (float) Math.sqrt(mMatrixValues[Matrix.MSCALE_Y]
+               * mMatrixValues[Matrix.MSCALE_Y] + mMatrixValues[Matrix.MSKEW_X]
+               * mMatrixValues[Matrix.MSKEW_X]);
 		/* Draw in backward cycle, so the items with the least index are on the front. */
-		for (int i = size; i >= 0; i--) {
-			final Item item = getItem(i);
-			pj.toPixels(item.getPoint(), mCurScreenCoords);
+        for (int i = size; i >= 0; i--) {
+            final Item item = getItem(i);
+            if (item == null) {
+                continue;
+            }
 
-			onDrawItem(c, item, mCurScreenCoords, mapView.getMapOrientation());
-		}
-	}
+            pj.toPixels(item.getPoint(), mCurScreenCoords);
+
+           onDrawItem(canvas,item, mCurScreenCoords, mapView.getMapOrientation());
+        }
+    }
 
 	// ===========================================================
 	// Methods
@@ -150,10 +179,14 @@ public abstract class ItemizedOverlay<Item extends OverlayItem> extends Overlay 
 	 *
 	 * @param position
 	 *            the position of the item to return
-	 * @return the Item of the given index.
+	 * @return the Item of the given index, or null if not found at position
 	 */
 	public final Item getItem(final int position) {
-		return mInternalItemList.get(position);
+		try {
+			return mInternalItemList.get(position);
+		}catch(final IndexOutOfBoundsException e) {
+			return null;
+		}
 	}
 
 	/**
@@ -168,6 +201,29 @@ public abstract class ItemizedOverlay<Item extends OverlayItem> extends Overlay 
 	 */
 	protected void onDrawItem(final Canvas canvas, final Item item, final Point curScreenCoords,
 			final float aMapOrientation) {
+
+		
+
+		final int state = (mDrawFocusedItem && (mFocusedItem == item) ? OverlayItem.ITEM_STATE_FOCUSED_MASK
+				: 0);
+		final Drawable marker = (item.getMarker(state) == null) ? getDefaultMarker(state) : item
+				.getMarker(state);
+		final HotspotPlace hotspot = item.getMarkerHotspot();
+
+		boundToHotspot(marker, hotspot);
+
+		int x = mCurScreenCoords.x;
+		int y = mCurScreenCoords.y;
+
+		canvas.save();
+		canvas.rotate(-aMapOrientation, x, y);
+		marker.copyBounds(mRect);
+		marker.setBounds(mRect.left + x, mRect.top + y, mRect.right + x, mRect.bottom + y);
+		canvas.scale(1 / scaleX, 1 / scaleY, x, y);
+		marker.draw(canvas);
+		marker.setBounds(mRect);
+		canvas.restore();
+		/*
 		final int state = (mDrawFocusedItem && (mFocusedItem == item) ? OverlayItem.ITEM_STATE_FOCUSED_MASK
 				: 0);
 		final Drawable marker = (item.getMarker(state) == null) ? getDefaultMarker(state) : item
@@ -177,7 +233,7 @@ public abstract class ItemizedOverlay<Item extends OverlayItem> extends Overlay 
 		boundToHotspot(marker, hotspot);
 
 		// draw it
-		Overlay.drawAt(canvas, marker, curScreenCoords.x, curScreenCoords.y, false, aMapOrientation);
+		Overlay.drawAt(canvas, marker, curScreenCoords.x, curScreenCoords.y, false, aMapOrientation);*/
 	}
 
 	protected Drawable getDefaultMarker(final int state) {
@@ -214,12 +270,16 @@ public abstract class ItemizedOverlay<Item extends OverlayItem> extends Overlay 
 
 		for (int i = 0; i < size; i++) {
 			final Item item = getItem(i);
+			if (item == null) {
+				continue;
+			}
+
 			pj.toPixels(item.getPoint(), mCurScreenCoords);
 
-			final int state = (mDrawFocusedItem && (mFocusedItem == item) ? OverlayItem.ITEM_STATE_FOCUSED_MASK
-					: 0);
-			final Drawable marker = (item.getMarker(state) == null) ? getDefaultMarker(state)
-					: item.getMarker(state);
+			final int state = (mDrawFocusedItem && (mFocusedItem == item) ?
+					OverlayItem.ITEM_STATE_FOCUSED_MASK : 0);
+			final Drawable marker = (item.getMarker(state) == null) ?
+					getDefaultMarker(state) : item.getMarker(state);
 			boundToHotspot(marker, item.getMarkerHotspot());
 			if (hitTest(item, marker, -mCurScreenCoords.x + screenRect.left + (int) e.getX(),
 					-mCurScreenCoords.y + screenRect.top + (int) e.getY())) {
@@ -256,9 +316,9 @@ public abstract class ItemizedOverlay<Item extends OverlayItem> extends Overlay 
 
 	/**
 	 * If the given Item is found in the overlay, force it to be the current focus-bearer. Any
-	 * registered {@link ItemizedOverlay#OnFocusChangeListener} will be notified. This does not move
-	 * the map, so if the Item isn't already centered, the user may get confused. If the Item is not
-	 * found, this is a no-op. You can also pass null to remove focus.
+	 * registered {@link OnFocusChangeListener} will be notified. This does not move the map, so if
+	 * the Item isn't already centered, the user may get confused. If the Item is not found, this is
+	 * a no-op. You can also pass null to remove focus.
 	 */
 	public void setFocus(final Item item) {
 		mPendingFocusChangedEvent = item != mFocusedItem;
