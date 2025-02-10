@@ -1,96 +1,107 @@
 package org.osmdroid.views.util;
 
-import java.util.List;
-
-import org.osmdroid.util.BoundingBox;
-import org.osmdroid.util.GeoPoint;
-import org.osmdroid.util.TileSystem;
-import org.osmdroid.views.Projection;
-
 import android.graphics.Path;
 import android.graphics.Point;
 import android.graphics.PointF;
 import android.graphics.Rect;
 
+import org.osmdroid.util.BoundingBox;
+import org.osmdroid.util.GeoPoint;
+import org.osmdroid.util.PointL;
+import org.osmdroid.util.TileSystem;
+import org.osmdroid.views.Projection;
+import org.osmdroid.views.overlay.Polygon;
+import org.osmdroid.views.overlay.Polyline;
+
+import java.util.List;
+
+/**
+ * @deprecated Use {@link Polyline} or {@link Polygon} instead
+ */
+@Deprecated
 public class PathProjection {
 
-	public static Path toPixels(Projection projection, final List<? extends GeoPoint> in,
-			final Path reuse) {
-		return toPixels(projection, in, reuse, true);
-	}
+    public static Path toPixels(Projection projection, final List<? extends GeoPoint> in,
+                                final Path reuse) {
+        return toPixels(projection, in, reuse, true);
+    }
 
-	public static Path toPixels(Projection projection, final List<? extends GeoPoint> in,
-			final Path reuse, final boolean doGudermann) throws IllegalArgumentException {
-		if (in.size() < 2) {
-			throw new IllegalArgumentException("List of GeoPoints needs to be at least 2.");
-		}
+    public static Path toPixels(Projection projection, final List<? extends GeoPoint> in,
+                                final Path reuse, final boolean doGudermann) throws IllegalArgumentException {
+        if (in.size() < 2) {
+            throw new IllegalArgumentException("List of GeoPoints needs to be at least 2.");
+        }
 
-		final Path out = (reuse != null) ? reuse : new Path();
-		out.incReserve(in.size());
+        final Path out = (reuse != null) ? reuse : new Path();
+        out.incReserve(in.size());
 
-		boolean first = true;
-		for (final GeoPoint gp : in) {
-			final Point underGeopointTileCoords = TileSystem.LatLongToPixelXY(
-					gp.getLatitude(), gp.getLongitude(), projection.getZoomLevel(),
-					null);
-			TileSystem.PixelXYToTileXY(underGeopointTileCoords.x, underGeopointTileCoords.y,
-					underGeopointTileCoords);
+        final TileSystem tileSystem = org.osmdroid.views.MapView.getTileSystem();
+        boolean first = true;
+        for (final GeoPoint gp : in) {
+            final Point underGeopointTileCoords = new Point();
+            final double mapSize = TileSystem.MapSize(projection.getZoomLevel());
+            final PointL mercator = tileSystem.getMercatorFromGeo(
+                    gp.getLatitude(), gp.getLongitude(), mapSize,
+                    null, true);
+            underGeopointTileCoords.x = projection.getTileFromMercator(mercator.x);
+            underGeopointTileCoords.y = projection.getTileFromMercator(mercator.y);
 
-			/*
-			 * Calculate the Latitude/Longitude on the left-upper ScreenCoords of the MapTile.
-			 */
-			final Point upperRight = TileSystem.TileXYToPixelXY(underGeopointTileCoords.x,
-					underGeopointTileCoords.y, null);
-			final Point lowerLeft = TileSystem.TileXYToPixelXY(underGeopointTileCoords.x
-					+ TileSystem.getTileSize(),
-					underGeopointTileCoords.y + TileSystem.getTileSize(), null);
-			final GeoPoint neGeoPoint = TileSystem.PixelXYToLatLong(upperRight.x, upperRight.y,
-					projection.getZoomLevel(), null);
-			final GeoPoint swGeoPoint = TileSystem.PixelXYToLatLong(lowerLeft.x, lowerLeft.y,
-					projection.getZoomLevel(), null);
-			final BoundingBox bb = new BoundingBox(neGeoPoint.getLatitude(),
-					neGeoPoint.getLongitude(), swGeoPoint.getLatitude(),
-					swGeoPoint.getLongitude());
+            /*
+             * Calculate the Latitude/Longitude on the left-upper ScreenCoords of the MapTile.
+             */
+            final PointL upperRight = new PointL(
+                    projection.getMercatorFromTile(underGeopointTileCoords.x),
+                    projection.getMercatorFromTile(underGeopointTileCoords.y));
+            final PointL lowerLeft = new PointL(
+                    projection.getMercatorFromTile(underGeopointTileCoords.x + TileSystem.getTileSize()),
+                    projection.getMercatorFromTile(underGeopointTileCoords.y + TileSystem.getTileSize()));
+            final GeoPoint neGeoPoint = tileSystem.getGeoFromMercator(upperRight.x, upperRight.y, mapSize, null, true, true);
+            final GeoPoint swGeoPoint = tileSystem.getGeoFromMercator(lowerLeft.x, lowerLeft.y, mapSize, null, true, true);
+            final BoundingBox bb = new BoundingBox(neGeoPoint.getLatitude(),
+                    neGeoPoint.getLongitude(), swGeoPoint.getLatitude(),
+                    swGeoPoint.getLongitude());
 
-			final PointF relativePositionInCenterMapTile;
-			if (doGudermann && (projection.getZoomLevel() < 7)) {
-				relativePositionInCenterMapTile = bb
-						.getRelativePositionOfGeoPointInBoundingBoxWithExactGudermannInterpolation(
-								gp.getLatitude(), gp.getLongitude(), null);
-			} else {
-				relativePositionInCenterMapTile = bb
-						.getRelativePositionOfGeoPointInBoundingBoxWithLinearInterpolation(
-								gp.getLatitude(), gp.getLongitude(), null);
-			}
+            final PointF relativePositionInCenterMapTile;
+            if (doGudermann && (projection.getZoomLevel() < 7)) {
+                relativePositionInCenterMapTile = bb
+                        .getRelativePositionOfGeoPointInBoundingBoxWithExactGudermannInterpolation(
+                                gp.getLatitude(), gp.getLongitude(), null);
+            } else {
+                relativePositionInCenterMapTile = bb
+                        .getRelativePositionOfGeoPointInBoundingBoxWithLinearInterpolation(
+                                gp.getLatitude(), gp.getLongitude(), null);
+            }
 
-			final Rect screenRect = projection.getScreenRect();
-			Point centerMapTileCoords = TileSystem.PixelXYToTileXY(screenRect.centerX(),
-					screenRect.centerY(), null);
-			final Point upperLeftCornerOfCenterMapTile = TileSystem.TileXYToPixelXY(
-					centerMapTileCoords.x, centerMapTileCoords.y, null);
-			final int tileDiffX = centerMapTileCoords.x - underGeopointTileCoords.x;
-			final int tileDiffY = centerMapTileCoords.y - underGeopointTileCoords.y;
-			final int underGeopointTileScreenLeft = upperLeftCornerOfCenterMapTile.x
-					- (TileSystem.getTileSize() * tileDiffX);
-			final int underGeopointTileScreenTop = upperLeftCornerOfCenterMapTile.y
-					- (TileSystem.getTileSize() * tileDiffY);
+            final Rect screenRect = projection.getScreenRect();
+            final Point centerMapTileCoords = new Point(
+                    projection.getTileFromMercator(screenRect.centerX()),
+                    projection.getTileFromMercator(screenRect.centerY()));
+            final PointL upperLeftCornerOfCenterMapTile = new PointL(
+                    projection.getMercatorFromTile(centerMapTileCoords.x),
+                    projection.getMercatorFromTile(centerMapTileCoords.y));
+            final int tileDiffX = centerMapTileCoords.x - underGeopointTileCoords.x;
+            final int tileDiffY = centerMapTileCoords.y - underGeopointTileCoords.y;
+            final long underGeopointTileScreenLeft = upperLeftCornerOfCenterMapTile.x
+                    - (TileSystem.getTileSize() * tileDiffX);
+            final long underGeopointTileScreenTop = upperLeftCornerOfCenterMapTile.y
+                    - (TileSystem.getTileSize() * tileDiffY);
 
-			final int x = underGeopointTileScreenLeft
-					+ (int) (relativePositionInCenterMapTile.x * TileSystem.getTileSize());
-			final int y = underGeopointTileScreenTop
-					+ (int) (relativePositionInCenterMapTile.y * TileSystem.getTileSize());
+            final long x = underGeopointTileScreenLeft
+                    + (long) (relativePositionInCenterMapTile.x * TileSystem.getTileSize());
+            final long y = underGeopointTileScreenTop
+                    + (long) (relativePositionInCenterMapTile.y * TileSystem.getTileSize());
 
-			/* Add up the offset caused by touch. */
-			if (first) {
-				out.moveTo(x, y);
-				// out.moveTo(x + MapView.this.mTouchMapOffsetX, y +
-				// MapView.this.mTouchMapOffsetY);
-			} else {
-				out.lineTo(x, y);
-			}
-			first = false;
-		}
+            /* Add up the offset caused by touch. */
+            if (first) {
+                out.moveTo(x, y);
+                // out.moveTo(x + MapView.this.mTouchMapOffsetX, y +
+                // MapView.this.mTouchMapOffsetY);
+            } else {
+                out.lineTo(x, y);
+            }
+            first = false;
+        }
 
-		return out;
-	}
+        return out;
+    }
 }

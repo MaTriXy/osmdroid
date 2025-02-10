@@ -1,45 +1,64 @@
 package org.osmdroid.tileprovider;
 
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.Queue;
-
 import org.osmdroid.tileprovider.modules.MapTileModuleProviderBase;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 public class MapTileRequestState {
 
-	private final Queue<MapTileModuleProviderBase> mProviderQueue;
-	private final MapTile mMapTile;
-	private final IMapTileProviderCallback mCallback;
-	private MapTileModuleProviderBase mCurrentProvider;
+    private final List<MapTileModuleProviderBase> mProviderQueue;
+    private final long mMapTileIndex;
+    private final IMapTileProviderCallback mCallback;
+    private int index;
+    private MapTileModuleProviderBase mCurrentProvider;
 
-	public MapTileRequestState(final MapTile mapTile,
-			final MapTileModuleProviderBase[] providers,
-			final IMapTileProviderCallback callback) {
-		mProviderQueue = new LinkedList<MapTileModuleProviderBase>();
-		Collections.addAll(mProviderQueue, providers);
-		mMapTile = mapTile;
-		mCallback = callback;
-	}
+    /**
+     * @deprecated use {@link MapTileRequestState#MapTileRequestState(long, List, IMapTileProviderCallback)}  instead
+     */
+    @Deprecated
+    public MapTileRequestState(final long pMapTleIndex,
+                               final MapTileModuleProviderBase[] providers,
+                               final IMapTileProviderCallback callback) {
+        mProviderQueue = new ArrayList<>();
+        Collections.addAll(mProviderQueue, providers);
+        mMapTileIndex = pMapTleIndex;
+        mCallback = callback;
+    }
 
-	public MapTile getMapTile() {
-		return mMapTile;
-	}
+    /**
+     * @since 6.0
+     */
+    public MapTileRequestState(final long pMapTileIndex,
+                               final List<MapTileModuleProviderBase> providers,
+                               final IMapTileProviderCallback callback) {
+        mProviderQueue = providers;
+        mMapTileIndex = pMapTileIndex;
+        mCallback = callback;
+    }
 
-	public IMapTileProviderCallback getCallback() {
-		return mCallback;
-	}
+    /**
+     * @since 6.0.0
+     */
+    public long getMapTile() {
+        return mMapTileIndex;
+    }
 
-	public boolean isEmpty() {
-		return mProviderQueue.isEmpty();
-	}
+    public IMapTileProviderCallback getCallback() {
+        return mCallback;
+    }
 
-	public MapTileModuleProviderBase getNextProvider() {
-		mCurrentProvider = mProviderQueue.poll();
-		return mCurrentProvider;
-	}
+    public boolean isEmpty() {
+        return mProviderQueue == null || index >= mProviderQueue.size();
+    }
 
-	public MapTileModuleProviderBase getCurrentProvider() {
-		return mCurrentProvider;
-	}
+    public MapTileModuleProviderBase getNextProvider() {
+        mCurrentProvider = isEmpty() ? null : mProviderQueue.get(index++);
+        return mCurrentProvider;
+    }
+
+    public MapTileModuleProviderBase getCurrentProvider() {
+        return mCurrentProvider;
+    }
 }

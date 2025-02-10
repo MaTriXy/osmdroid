@@ -3,17 +3,12 @@
               xmlns:app="http://schemas.android.com/apk/res-auto"
               android:layout_width="match_parent"
               android:layout_height="match_parent"
-              android:orientation="vertical"
-              android:padding="18dp">
+              android:orientation="vertical">
 
-    <android.support.v7.widget.Toolbar
+    <androidx.appcompat.widget.Toolbar
         android:id="@+id/my_toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:background="?attr/colorPrimary"
-        android:elevation="4dp"
-        android:theme="@style/ThemeOverlay.AppCompat.ActionBar"
-        app:popupTheme="@style/ThemeOverlay.AppCompat.Light"/>
+        app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
+        style="@style/ToolbarStyle"/>
 
     <ScrollView
         android:layout_width="match_parent"
@@ -22,7 +17,9 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:layout_marginRight="16dp"
+            android:layout_marginLeft="16dp">
 
 
             <TextView
@@ -306,6 +303,34 @@
                 android:layout_height="wrap_content"
                 android:text="@string/enable_mapview_hardware_acceleration"/>
 
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Animation Speed Default (ms)"
+                />
+
+            <EditText
+                android:id="@+id/zoomSpeedDefault"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:lines="1"
+                />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Animation Speed Short (ms)"
+                />
+
+            <EditText
+                android:id="@+id/zoomSpeedShort"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:lines="1"
+                />
 
             <Button
                 android:id="@+id/buttonReset"

@@ -6,18 +6,17 @@ package org.osmdroid.views.overlay;
 //
 //  Copyright (C) 2015	Bill Farmer
 //
-//  This program is free software; you can redistribute it and/or modify
-//  it under the terms of the GNU General Public License as published by
-//  the Free Software Foundation; either version 3 of the License, or
-//  (at your option) any later version.
-//
-//  This program is distributed in the hope that it will be useful,
-//  but WITHOUT ANY WARRANTY; without even the implied warranty of
-//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//  GNU General Public License for more details.
-//
-//  You should have received a copy of the GNU General Public License
-//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//  
+//       http://www.apache.org/licenses/LICENSE-2.0
+
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
 //
 //  Bill Farmer	 william j farmer [at] yahoo [dot] co [dot] uk.
 //
@@ -32,6 +31,7 @@ import android.util.DisplayMetrics;
 
 import org.osmdroid.tileprovider.tilesource.ITileSource;
 import org.osmdroid.views.MapView;
+import org.osmdroid.views.Projection;
 
 
 /**
@@ -55,6 +55,7 @@ public class CopyrightOverlay extends Overlay {
     protected boolean alignBottom = true;
     protected boolean alignRight = false;
     final DisplayMetrics dm;
+    private String mCopyrightNotice;
     // Constructor
 
     public CopyrightOverlay(Context context) {
@@ -104,13 +105,16 @@ public class CopyrightOverlay extends Overlay {
 
     @Override
     public void draw(Canvas canvas, MapView map, boolean shadow) {
-        if (shadow) return;
-        if (map.isAnimating()) {
-            return;
-        }
+        setCopyrightNotice(map.getTileProvider().getTileSource().getCopyrightNotice());
+        draw(canvas, map.getProjection());
+    }
 
-        if (map.getTileProvider().getTileSource().getCopyrightNotice() == null ||
-            map.getTileProvider().getTileSource().getCopyrightNotice().length() == 0)
+    /**
+     * @since 6.1.0
+     */
+    @Override
+    public void draw(final Canvas canvas, final Projection pProjection) {
+        if (mCopyrightNotice == null || mCopyrightNotice.length() == 0)
             return;
 
         int width = canvas.getWidth();
@@ -133,10 +137,15 @@ public class CopyrightOverlay extends Overlay {
             y = paint.getTextSize() + yOffset;
 
         // Draw the text
-        canvas.save();
-        canvas.concat(map.getProjection().getInvertedScaleRotateCanvasMatrix());
-        //canvas.translate(offsetX, offsetY);
-        canvas.drawText(map.getTileProvider().getTileSource().getCopyrightNotice(), x, y, paint);
-        canvas.restore();
+        pProjection.save(canvas, false, false);
+        canvas.drawText(mCopyrightNotice, x, y, paint);
+        pProjection.restore(canvas, false);
+    }
+
+    /**
+     * @since 6.1.0
+     */
+    public void setCopyrightNotice(final String pCopyrightNotice) {
+        mCopyrightNotice = pCopyrightNotice;
     }
 }

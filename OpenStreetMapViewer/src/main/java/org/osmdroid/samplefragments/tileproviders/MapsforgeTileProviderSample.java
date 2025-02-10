@@ -3,7 +3,6 @@ package org.osmdroid.samplefragments.tileproviders;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.os.Bundle;
-
 import android.util.Log;
 import android.widget.Toast;
 
@@ -21,12 +20,12 @@ import java.io.File;
 import java.io.FileFilter;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 /**
- *
  * An example of using MapsForge in osmdroid
  * created on 1/12/2017.
  *
@@ -34,8 +33,9 @@ import java.util.Set;
  */
 
 public class MapsforgeTileProviderSample extends BaseSampleFragment {
-    MapsForgeTileSource fromFiles=null;
-    MapsForgeTileProvider forge=null;
+    MapsForgeTileSource fromFiles = null;
+    MapsForgeTileProvider forge = null;
+    AlertDialog alertDialog = null;
 
     @Override
     public String getSampleTitle() {
@@ -45,7 +45,7 @@ public class MapsforgeTileProviderSample extends BaseSampleFragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setHasOptionsMenu(false);
+        setHasOptionsMenu(false);   //turn off the menu to prevent accidential tile source changes
         Log.d(TAG, "onCreate");
 
         /**
@@ -64,7 +64,7 @@ public class MapsforgeTileProviderSample extends BaseSampleFragment {
 
 
     @Override
-    public void addOverlays(){
+    public void addOverlays() {
         super.addOverlays();
         //first let's up our map source, mapsforge needs you to explicitly specify which map files to load
         //this bit does some basic file system scanning
@@ -72,34 +72,33 @@ public class MapsforgeTileProviderSample extends BaseSampleFragment {
         //do a simple scan of local storage for .map files.
         File[] maps = new File[mapfiles.size()];
         maps = mapfiles.toArray(maps);
-        if (maps==null || maps.length==0){
+        if (maps == null || maps.length == 0) {
             //show a warning that no map files were found
             AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(
-                getContext());
+                    getContext());
 
             // set title
             alertDialogBuilder.setTitle("No Mapsforge files found");
 
             // set dialog message
             alertDialogBuilder
-                .setMessage("In order to render map tiles, you'll need to either create or obtain mapsforge .map files. See https://github.com/mapsforge/mapsforge for more info. Store them in "
-                 + Configuration.getInstance().getOsmdroidBasePath().getAbsolutePath())
-                .setCancelable(false)
-                .setPositiveButton("Yes",new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog,int id) {
-
-                    }
-                });
+                    .setMessage("In order to render map tiles, you'll need to either create or obtain mapsforge .map files. See https://github.com/mapsforge/mapsforge for more info. Store them in "
+                            + Configuration.getInstance().getOsmdroidBasePath().getAbsolutePath())
+                    .setCancelable(false)
+                    .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface dialog, int id) {
+                            if (alertDialog != null) alertDialog.dismiss();
+                        }
+                    });
 
 
             // create alert dialog
-            AlertDialog alertDialog = alertDialogBuilder.create();
+            alertDialog = alertDialogBuilder.create();
 
             // show it
             alertDialog.show();
 
-        }
-        else {
+        } else {
             Toast.makeText(getContext(), "Loaded " + maps.length + " map files", Toast.LENGTH_LONG).show();
 
             //this creates the forge provider and tile sources
@@ -109,22 +108,24 @@ public class MapsforgeTileProviderSample extends BaseSampleFragment {
             //null is ok here, uses the default rendering theme if it's not set
             XmlRenderTheme theme = null;
             try {
-                theme = new AssetsRenderTheme(getContext().getApplicationContext(), "renderthemes/", "rendertheme-v4.xml");
+                theme = new AssetsRenderTheme(getContext().getApplicationContext().getAssets(), "renderthemes/", "rendertheme-v4.xml");
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
 
             fromFiles = MapsForgeTileSource.createFromFiles(maps, theme, "rendertheme-v4");
             forge = new MapsForgeTileProvider(
-                new SimpleRegisterReceiver(getContext()),
-                fromFiles, null);
+                    new SimpleRegisterReceiver(getContext()),
+                    fromFiles, null);
 
+            // with value of .5F the map tiles more closely resemble that of native MapsForge basic map
+            // fromFiles.setUserScaleFactor(.5F);
 
             mMapView.setTileProvider(forge);
 
-            
+
             //now for a magic trick
-            //since we, the silly little osmdroid developers have no idea what will be on the
+            //since we have no idea what will be on the
             //user's device and what geographic area it is, this will attempt to center the map
             //on whatever the map data provides
             mMapView.getController().setZoom(fromFiles.getMinimumZoomLevel());
@@ -132,31 +133,36 @@ public class MapsforgeTileProviderSample extends BaseSampleFragment {
         }
     }
 
-
     @Override
-    public boolean skipOnCiTests(){
-        //FIXME temporary fix until we iron out what is leaking on this
-        return false;
+    public void onPause() {
+        super.onPause();
+        if (alertDialog != null) alertDialog.dismiss();
+        alertDialog = null;
     }
 
-
     @Override
-    public void onDestroy(){
+    public void onDestroy() {
         super.onDestroy();
-        if (fromFiles!=null)
+        if (alertDialog != null) {
+            alertDialog.hide();
+            alertDialog.dismiss();
+            alertDialog = null;
+        }
+        if (fromFiles != null)
             fromFiles.dispose();
-        if (forge!=null)
+        if (forge != null)
             forge.detach();
         AndroidGraphicFactory.clearResourceMemoryCache();
     }
 
     /**
      * simple function to scan for paths that match /something/osmdroid/*.map to find mapforge database files
+     *
      * @return
      */
-    protected static Set<File> findMapFiles() {
+    protected Set<File> findMapFiles() {
         Set<File> maps = new HashSet<>();
-        List<StorageUtils.StorageInfo> storageList = StorageUtils.getStorageList();
+        List<StorageUtils.StorageInfo> storageList = StorageUtils.getStorageList(getActivity());
         for (int i = 0; i < storageList.size(); i++) {
             File f = new File(storageList.get(i).path + File.separator + "osmdroid" + File.separator);
             if (f.exists()) {
@@ -166,20 +172,16 @@ public class MapsforgeTileProviderSample extends BaseSampleFragment {
         return maps;
     }
 
-    static private Collection<? extends File> scan(File f) {
+    private Collection<? extends File> scan(File f) {
         List<File> ret = new ArrayList<>();
         File[] files = f.listFiles(new FileFilter() {
             @Override
             public boolean accept(File pathname) {
-                if (pathname.getName().toLowerCase().endsWith(".map"))
-                    return true;
-                return false;
+                return pathname.getName().toLowerCase().endsWith(".map");
             }
         });
         if (files != null) {
-            for (int i = 0; i < files.length; i++) {
-                ret.add(files[i]);
-            }
+            Collections.addAll(ret, files);
         }
         return ret;
     }
